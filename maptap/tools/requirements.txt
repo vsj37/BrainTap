@@ -1,0 +1,3 @@
+brainglobe-atlasapi
+numpy
+opencv-python-headless
