@@ -1,11 +1,15 @@
-import '@fontsource-variable/fredoka';
+import '@fontsource-variable/hanken-grotesk';
 import './style.css';
-import { APP_NAME, STORAGE_KEY, TAGLINE, ROUND_PTS, ROUND_LEVELS, FALLOFF_MM, ART, CREDITS } from './config.js';
+import { APP_NAME, STORAGE_KEY, CLOUD_KEY, TAGLINE, ROUND_PTS, ROUND_RULES, FALLOFF_MM, ART, CREDITS } from './config.js';
 import { largestRing, nearestSlice, regionAt, ringCenter, scoreGuess } from './logic.js';
-import { dailyKey, pickRounds, puzzleNumber, shareText } from './daily.js';
+import { dailyKey, buildPools, pickRounds, puzzleNumber, shareText } from './daily.js';
 import * as store from './store.js';
 import { barChart } from './chart.js';
 import { h, tier, square, fmtAp, fmtDay } from './ui.js';
+import { createApi, loadCloud, saveCloud } from './api.js';
+import { accountForm, profileSection } from './account.js';
+import { createGroups } from './groups.js';
+import { privacyNode } from './privacy.js';
 
 const ROUNDS = ROUND_PTS.length;
 const MAX_TOTAL = ROUND_PTS.reduce((a, b) => a + b, 0);
@@ -45,29 +49,69 @@ const storage = (() => {
   } catch {
     return null;
   }
-})() ?? { getItem: (k) => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), volatile: true };
+})() ?? { getItem: (k) => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: (k) => memory.delete(k), volatile: true };
 let profile = store.loadProfile(storage);
 function commit(next) {
   profile = next;
   store.saveProfile(storage, profile);
 }
 
-// ---------- routing: #  = home, #stats = stats, #play = the game in progress ----------
-const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats') };
+// ---------- optional cloud profile (username + recovery key, no login) ----------
+let cloud = loadCloud(storage);
+const api = createApi({ getKey: () => cloud?.key });
+function setCloud(c) {
+  cloud = c;
+  saveCloud(storage, c);
+}
+// Upload this device's results (idempotent; first write per day wins on the server). Failures are silent: it retries next time.
+async function sync() {
+  if (!cloud) return;
+  const day = currentDay();
+  try {
+    const past = Object.entries(profile.history).filter(([d]) => d < day).sort().slice(-60).map(([d, e]) => ({ day: d, ...e }));
+    if (past.length) await api.importResults(past);
+    const e = profile.history[day];
+    if (e) await api.putResult(day, e);
+  } catch { /* offline or day mismatch: ignore */ }
+}
+const accountCtx = {
+  api,
+  getCloud: () => cloud,
+  setCloud,
+  importHistory: (hist) => commit({ ...profile, history: store.mergeHistory(profile.history, hist) }),
+  sync,
+  rerender: () => route(),
+  volatile: !!storage.volatile,
+};
+const groups = createGroups({ api, getCloud: () => cloud, today: currentDay, go: (hash) => go(hash), account: { form: (opts) => accountForm(accountCtx, opts) } });
+
+// ---------- routing: #  = home, #stats, #groups, #g/<id>, #join/<code>, #privacy, #play = the game in progress ----------
+const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats'), groups: $('vGroups'), privacy: $('vPrivacy') };
 let game = null;
 let timer = null;
 
 function route() {
   clearInterval(timer);
   const hash = location.hash;
-  let name = hash === '#stats' ? 'stats' : hash === '#play' && game ? 'game' : 'home';
+  let m;
+  let name = 'home';
+  if (hash === '#stats') name = 'stats';
+  else if (hash === '#privacy') name = 'privacy';
+  else if (hash === '#groups' || /^#(g|join)\//.test(hash)) name = 'groups';
+  else if (hash === '#play' && game) name = 'game';
   for (const [k, el] of Object.entries(views)) el.hidden = k !== name;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const on = a.dataset.nav === (name === 'stats' ? 'stats' : 'home');
+    const on = a.dataset.nav === (name === 'stats' || name === 'groups' ? name : 'home') && name !== 'privacy';
     on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
   });
   if (name === 'home') renderHome();
   if (name === 'stats') renderStats();
+  if (name === 'privacy') views.privacy.replaceChildren(privacyNode());
+  if (name === 'groups') {
+    if ((m = /^#g\/([0-9a-f]{16})$/.exec(hash))) groups.renderGroup(views.groups, m[1]);
+    else if ((m = /^#join\/([a-z0-9]{10})$/.exec(hash))) groups.renderJoin(views.groups, m[1]);
+    else groups.renderList(views.groups);
+  }
   window.scrollTo(0, 0);
 }
 function go(target) {
@@ -78,8 +122,13 @@ function go(target) {
   else location.hash = target;
 }
 window.addEventListener('hashchange', route);
-// Another tab saved new stats: pick them up so this tab doesn't overwrite them later.
+// Another tab saved new stats / signed in or out: pick that up so this tab doesn't overwrite it later.
 window.addEventListener('storage', (e) => {
+  if (e.key === CLOUD_KEY) {
+    cloud = loadCloud(storage);
+    if (!views.stats.hidden) renderStats();
+    return;
+  }
   if (e.key !== STORAGE_KEY) return;
   profile = store.loadProfile(storage);
   if (!views.home.hidden) renderHome();
@@ -194,7 +243,6 @@ function renderHome() {
 
 // ---------- stats ----------
 let chartUnit = 'day';
-let notice = '';
 const CHART = { day: [14, 'Daily score, last 14 days'], week: [12, 'Average score per week, last 12 weeks'], month: [12, 'Average score per month, last 12 months'] };
 
 function renderStats() {
@@ -203,16 +251,6 @@ function renderStats() {
   const sm = store.summary(profile.history);
   const has = sm.played > 0;
   const recent = Object.keys(profile.history).sort().reverse().slice(0, 10);
-
-  const nameInput = h('input', { type: 'text', id: 'pname', maxlength: '24', placeholder: 'Add a name', value: profile.name });
-  nameInput.addEventListener('change', () => {
-    commit({ ...profile, name: nameInput.value.trim().slice(0, 24) });
-    renderStats();
-  });
-
-  const msg = h('p', { class: 'msg', role: 'status' }, notice);
-  notice = '';
-  const area = h('textarea', { rows: '3', placeholder: 'Paste a backup code here', 'aria-label': 'Backup code' });
 
   const [n, caption] = CHART[chartUnit];
   const seg = h(
@@ -224,7 +262,7 @@ function renderStats() {
   );
 
   const parts = [
-    h('div', { class: 'stats-head' }, h('h1', {}, profile.name ? `${profile.name}'s stats` : 'Your stats'), h('label', { class: 'name-field' }, 'Name', nameInput)),
+    h('div', { class: 'stats-head' }, h('h1', {}, cloud?.username ? `${cloud.username}'s stats` : 'Your stats')),
     statStrip([['Day streak', st.current], ['Best streak', st.best], ['Played', sm.played], ['Average', sm.avg ?? '–'], ['Best', sm.best ?? '–']], 5),
     has
       ? h('section', {}, seg, h('div', { class: 'chart-wrap' }, barChart(store.series(profile.history, chartUnit, day, n), chartUnit)), h('p', { class: 'caption' }, caption))
@@ -243,45 +281,20 @@ function renderStats() {
           }),
         ),
       ),
-    h(
-      'section',
-      { class: 'section' },
-      h('h2', {}, 'Back up or move your stats'),
-      h('p', {}, storage.volatile ? 'This browser is not letting the page save anything, so your stats will disappear when you close the tab.' : 'Your stats are saved in this browser only. Copy a backup code to keep them safe or move them to another device.'),
+    profileSection(accountCtx),
+    has &&
       h(
-        'div',
-        { class: 'stack' },
-        h('button', { type: 'button', class: 'btn btn-ghost', onclick: async () => {
-          try {
-            await navigator.clipboard.writeText(store.exportCode(profile));
-            msg.textContent = 'Backup code copied. Paste it into the box on your other device.';
-          } catch {
-            area.value = store.exportCode(profile);
-            msg.textContent = 'Copy the code from the box below.';
-          }
-        } }, 'Copy backup code'),
-        area,
+        'section',
+        { class: 'section' },
+        h('h2', {}, 'Stats in this browser'),
+        h('p', {}, storage.volatile ? 'This browser is not letting the page save anything, so your stats will disappear when you close the tab.' : 'Saved in this browser. With a profile they are also kept online.'),
         h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => {
-          try {
-            const imported = store.parseCode(area.value);
-            const merged = store.mergeProfiles(profile, imported);
-            const added = Object.keys(merged.history).length - Object.keys(profile.history).length;
-            commit(merged);
-            notice = added ? `Imported ${added} ${added === 1 ? 'day' : 'days'}.` : 'Nothing new to import.';
-            renderStats();
-          } catch (err) {
-            msg.textContent = err.message;
-          }
-        } }, 'Import backup code'),
-        msg,
-        has && h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => {
-          if (confirm('Erase all stats saved in this browser? This cannot be undone.')) {
+          if (confirm('Erase all stats saved in this browser? Your online profile, if any, is not affected.')) {
             commit(store.emptyProfile());
             renderStats();
           }
-        } }, 'Erase my stats'),
+        } }, 'Erase stats in this browser'),
       ),
-    ),
   ];
   views.stats.replaceChildren(...parts.filter(Boolean));
 }
@@ -329,7 +342,7 @@ function goTo(slice) {
 function startGame(mode) {
   const day = currentDay();
   if (mode === 'daily' && profile.history[day]) return go('');
-  const targets = pickRounds(data.structures, mode === 'daily' ? day : String(Math.random()), ROUND_LEVELS);
+  const targets = pickRounds(data.structures, mode === 'daily' ? day : String(Math.random()), buildPools(data.structures, ROUND_RULES));
   const resumed = mode === 'daily' && profile.progress?.day === day ? profile.progress.scores.slice(0, ROUNDS - 1) : [];
   game = { mode, day, targets, scores: resumed, round: resumed.length, phase: 'select', result: null };
   $('final').hidden = true;
@@ -385,6 +398,7 @@ function onGuess(e) {
         ? store.recordResult(profile, game.day, { scores: game.scores, targets: game.targets, maxes: ROUND_PTS })
         : store.saveProgress(profile, game.day, game.scores),
     );
+    if (game.scores.length >= ROUNDS) sync();
   }
   showResult();
   renderPips();
@@ -537,4 +551,5 @@ $('nextBtn').addEventListener('click', () => {
 $('view').addEventListener('click', () => goTo(shown() === game.result.guessSlice ? game.result.slice : game.result.guessSlice));
 
 route();
+sync();
 setTimeout(() => data.slices.forEach(sliceImage), 300); // warm the image cache

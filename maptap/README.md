@@ -9,19 +9,22 @@ npm run build
 
 ## Game
 
-- 3 rounds, 25 / 35 / 40 points, levels `[1]`, `[2,3]`, `[4,5]` (`src/config.js`).
+- 3 rounds, 25 / 35 / 40 points, round 1 draws levels 1-2, round 2 level 3 + the larger half of level 4, round 3 the smaller half of level 4 + level 5 (`ROUND_RULES`) (`src/config.js`).
 - Pick an AP slice with the slider (or the arrow buttons), tap the target. Score decreases linearly with the 3D distance (mm) from your guess
   (AP from your slice, ML/DV from your tap) to the closest point of the target across all slices; 0 at `FALLOFF_MM` (4.0, `src/config.js`).
 - After a guess the slider stays free: browse any slice, the target stays highlighted; a button jumps between the correct slice and yours.
 - Daily puzzle: seeded by the UTC date (`src/daily.js`), one play per day. Refreshing mid-game resumes at the same round.
-- Profiles: saved in the browser's localStorage (`src/store.js`): history, streaks, day/week/month charts, backup code to export/import. No server.
+- Local stats: browser localStorage (`src/store.js`). No account needed to play.
+- Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Stats page; sign in on another device with the key.
+- Groups (`#groups`): create, share the invite link (`#join/<code>`), max `GROUP_CAP` = 40 members. Day / week / month tables (total, games, average, wins). No spoilers: the server hides today's scores until the viewer has played today.
+- Privacy notice at `#privacy` (`src/privacy.js`); fill in `OPERATOR` in `src/config.js`.
 - URL params: `?date=YYYY-MM-DD` (open a specific day, for testing), `?hints` (draw region outlines).
 
 ## Customise
 
 - **Name:** `APP_NAME` in `src/config.js`. Also change `<title>` in `index.html`. Leave `STORAGE_KEY` alone or players lose their stats.
 - **Your artwork:** drop SVG/PNG files in `public/art/`, name them in `ART` in `src/config.js`, and add credits to `CREDITS`.
-- **Colours / type:** CSS variables at the top of `src/style.css`. Font: Fredoka (self-hosted via `@fontsource-variable/fredoka`, no external requests).
+- **Colours / type:** CSS variables at the top of `src/style.css`. Font: Aptos if the visitor has it installed (it is Microsoft-licensed and cannot be hosted), otherwise Hanken Grotesk (self-hosted via `@fontsource-variable/hanken-grotesk`, no external requests).
 
 ## Build real slices from Allen CCFv3
 
@@ -40,3 +43,20 @@ npm run dev
 - Bregma: CCFv3 AP origin is the anterior edge; Bregma is set to 5.4 mm behind it (`BREGMA_AP_UM`). Approximate.
 - Output also has `peakAreaMm2` / `apSpanMm` per structure to sanity-check the levels.
 - Allen content on a public site: credit "Image credit: Allen Institute" with a link, and check their Terms of Use before any commercial use.
+
+## Cloud setup (Cloudflare Worker + D1)
+
+`worker/index.js` serves `/api/*`; everything else is the static site (`wrangler.jsonc`: `run_worker_first: ["/api/*"]`).
+
+```bash
+npx wrangler login
+npx wrangler d1 create braintap --jurisdiction=eu     # EU data location can only be chosen at creation
+# paste the printed database_id into wrangler.jsonc
+npx wrangler d1 execute braintap --remote --file=worker/schema.sql
+npm run build && npx wrangler deploy
+```
+
+Local test of everything: `npx wrangler d1 execute braintap --local --file=worker/schema.sql`, then `npm run build && npx wrangler dev --local`.
+`npm test` also runs the Worker against an in-memory SQLite stand-in for D1.
+
+Known limits: results are submitted by the browser, so a determined player can fake a score (fine for friends; not for prizes). No rate limiting yet (Cloudflare WAF rate-limit rules can be added in the dashboard).

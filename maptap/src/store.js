@@ -117,39 +117,10 @@ function sanitizeProgress(p) {
   return { day: p.day, scores: p.scores };
 }
 
-export function mergeProfiles(a, b) {
-  // existing days win on conflict; the oldest creation date is kept
-  return {
-    ...a,
-    name: a.name || b.name,
-    created: [a.created, b.created].filter(Boolean).sort()[0] ?? '',
-    history: { ...b.history, ...a.history },
-  };
-}
-
-// ---------- backup codes ----------
-const toB64 = (s) => {
-  let bin = '';
-  for (const byte of new TextEncoder().encode(s)) bin += String.fromCharCode(byte);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-const fromB64 = (t) => {
-  const bin = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-};
-
-export const exportCode = (p) => `BT1.${toB64(JSON.stringify({ v: 1, name: p.name, created: p.created, history: p.history }))}`;
-
-export function parseCode(code) {
-  const t = String(code).trim();
-  if (!t.startsWith('BT1.')) throw new Error('That is not a backup code. Copy the whole code, starting with BT1.');
-  let obj;
-  try {
-    obj = JSON.parse(fromB64(t.slice(4)));
-  } catch {
-    throw new Error('The backup code is damaged. Copy it again in full.');
-  }
-  return sanitize(obj);
+// Merge days from the server (or any untrusted source) into local history. Invalid entries are dropped; local days win.
+export function mergeHistory(local, incoming) {
+  const clean = sanitize({ history: incoming }).history;
+  return { ...clean, ...local };
 }
 
 // ---------- persistence ----------

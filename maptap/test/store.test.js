@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, emptyProfile, exportCode, loadProfile, mergeProfiles, parseCode, pct, recordResult,
+  addDays, emptyProfile, loadProfile, mergeHistory, pct, recordResult,
   saveProfile, saveProgress, series, streaks, summary, weekStart,
 } from '../src/store.js';
 
@@ -57,41 +57,21 @@ test('series: days, weeks (Monday), months (incl. year boundary)', () => {
   assert.deepEqual(series({}, 'month', '2026-01-15', 2).map((m) => m.key), ['2025-12-01', '2026-01-01']);
 });
 
-test('backup code round-trips, including unicode names', () => {
-  const p = { ...withDays(['2026-10-27', '2026-10-28']), name: 'Zoë 🧠' };
-  const back = parseCode(exportCode(p));
-  assert.equal(back.name, 'Zoë 🧠');
-  assert.deepEqual(back.history, p.history);
-});
-
-test('imports are validated: bad entries dropped, junk rejected', () => {
-  const bad = {
-    name: 'x'.repeat(100),
-    history: {
-      '2026-10-01': full,
-      'not-a-date': full,
-      '2026-10-02': { scores: [99], maxes: [25] }, // score above max
-      '2026-10-03': { scores: [1, 2], maxes: [25] }, // length mismatch
-      '2026-10-04': { scores: ['a'], maxes: [25] },
-      '2026-13-45': full,
-    },
+test('mergeHistory: union of days, local wins, invalid entries dropped', () => {
+  const local = { '2026-10-01': zero };
+  const incoming = {
+    '2026-10-01': full,
+    '2026-10-02': full,
+    'not-a-date': full,
+    '2026-10-03': { scores: [99], maxes: [25] }, // score above max
+    '2026-10-04': { scores: [1, 2], maxes: [25] }, // length mismatch
+    '2026-13-45': full,
   };
-  const code = `BT1.${Buffer.from(JSON.stringify(bad)).toString('base64url')}`;
-  const p = parseCode(code);
-  assert.deepEqual(Object.keys(p.history), ['2026-10-01']);
-  assert.equal(p.name.length, 24);
-  assert.throws(() => parseCode('hello'), /backup code/);
-  assert.throws(() => parseCode('BT1.@@@'), /damaged/);
-});
-
-test('mergeProfiles: union of days, existing wins on conflict', () => {
-  const a = recordResult(emptyProfile(new Date('2026-10-05')), '2026-10-01', zero);
-  const b = recordResult(recordResult(emptyProfile(new Date('2026-09-01')), '2026-10-01', full), '2026-10-02', full);
-  const m = mergeProfiles(a, { ...b, name: 'Bo' });
-  assert.deepEqual(Object.keys(m.history).sort(), ['2026-10-01', '2026-10-02']);
-  assert.equal(pct(m.history['2026-10-01']), 0);
-  assert.equal(m.name, 'Bo');
-  assert.equal(m.created, '2026-09-01');
+  const m = mergeHistory(local, incoming);
+  assert.deepEqual(Object.keys(m).sort(), ['2026-10-01', '2026-10-02']);
+  assert.equal(pct(m['2026-10-01']), 0);
+  assert.equal(pct(m['2026-10-02']), 100);
+  assert.deepEqual(mergeHistory({}, null), {});
 });
 
 test('persistence: round-trip, corrupt data, unavailable storage', () => {
