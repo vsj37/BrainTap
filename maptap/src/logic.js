@@ -95,7 +95,7 @@ export function scoreGuess({ data, ap, p, key, maxPts, falloffMm }) {
   const guessSlice = nearestSlice(data.slices, ap);
   const c = closest3D(data, key, guessSlice.bregma, p);
   if (!c) throw new Error(`structure ${key} appears on no slice`);
-  const falloff = falloffMm ?? data.scoring?.falloffMm ?? 2.0;
+  const falloff = falloffMm ?? data.scoring?.falloffMm ?? 4.0;
   const pts = Math.round(maxPts * Math.max(0, 1 - c.dist3 / falloff));
   return { ...c, guessSlice, pts, maxPts, falloff, hit: c.dist3 === 0 };
 }

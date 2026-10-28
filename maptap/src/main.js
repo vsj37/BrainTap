@@ -7,6 +7,7 @@ const ROUND_PTS = [25, 35, 40]; // total 100
 const ROUND_LEVELS = [[1], [2, 3], [4, 5]]; // difficulty ramp (levels from tools/regions.csv)
 const ROUNDS = ROUND_PTS.length;
 const MAX_TOTAL = ROUND_PTS.reduce((a, b) => a + b, 0);
+const FALLOFF_MM = 4.0; // score reaches 0 at this 3D distance (mm) from the target; larger = more forgiving
 
 const qs = new URLSearchParams(location.search);
 const PRACTICE = qs.has('practice'); // random puzzle, replayable
@@ -82,13 +83,21 @@ function resultText(r) {
   return out.join('\n');
 }
 
-function showSlice() {
-  const s = result.view === 'correct' ? result.slice : result.guessSlice;
-  slider.value = s.bregma;
+const shown = () => nearestSlice(data.slices, +slider.value);
+
+function goTo(slice) {
+  slider.value = slice.bregma;
   syncOut();
-  $('view').textContent =
-    result.view === 'correct' ? `Show my slice (AP ${fmtAp(result.guessSlice.bregma)})` : `Show correct slice (AP ${fmtAp(result.slice.bregma)})`;
   render();
+}
+
+// Label of the jump button depends on which slice is currently displayed (the slider is free after a guess).
+function updateViewBtn() {
+  if (phase !== 'result') return;
+  $('view').textContent =
+    shown() === result.guessSlice
+      ? `Go to correct slice (AP ${fmtAp(result.slice.bregma)})`
+      : `Go to my slice (AP ${fmtAp(result.guessSlice.bregma)})`;
 }
 
 function onGuess(e) {
@@ -96,13 +105,12 @@ function onGuess(e) {
   const box = canvas.getBoundingClientRect();
   const p = [((e.clientX - box.left) * W) / box.width, ((e.clientY - box.top) * H) / box.height];
   const key = targets[round];
-  const r = scoreGuess({ data, ap: +slider.value, p, key, maxPts: ROUND_PTS[round] });
+  const r = scoreGuess({ data, ap: +slider.value, p, key, maxPts: ROUND_PTS[round], falloffMm: FALLOFF_MM });
 
   total += r.pts;
   scores.push(r.pts);
-  result = { ...r, p, key, clicked: regionAt(r.guessSlice, p), view: 'correct' }; // wrong -> start on the correct slice
-  phase = 'result';
-  slider.disabled = true;
+  result = { ...r, p, key, clicked: regionAt(r.guessSlice, p) };
+  phase = 'result'; // slider stays active so the player can browse; the view starts on the correct slice
 
   $('total').textContent = total;
   $('result').hidden = false;
@@ -110,7 +118,8 @@ function onGuess(e) {
   $('view').hidden = result.slice === result.guessSlice;
   $('next').textContent = round === ROUNDS - 1 ? 'Finish' : 'Next';
   $('next').hidden = false;
-  showSlice();
+  goTo(result.slice);
+  updateViewBtn();
 }
 
 function onNext() {
@@ -170,7 +179,7 @@ function render() {
   ctx.clearRect(0, 0, W, H);
 
   const reveal = phase === 'result';
-  const slice = reveal ? (result.view === 'correct' ? result.slice : result.guessSlice) : nearestSlice(data.slices, +slider.value);
+  const slice = shown();
   const img = sliceImage(slice);
 
   if (img) {
@@ -205,7 +214,7 @@ function render() {
     drawRegion(target, 'rgba(80,200,120,0.4)', '#50c878', 2.5);
     label(result.key, ringCenter(largestRing(target.polygons)));
   }
-  if (result.view === 'correct' && !result.hit) {
+  if (slice === result.slice && !result.hit) {
     ctx.beginPath(); // click -> nearest point of the target
     ctx.setLineDash([px(6), px(4)]);
     ctx.moveTo(...result.p);
@@ -215,11 +224,15 @@ function render() {
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  // click marker: solid on the slice you clicked, hollow ghost on other slices (same ML/DV position)
+  const onMine = slice === result.guessSlice;
   ctx.beginPath();
   ctx.arc(result.p[0], result.p[1], px(8), 0, Math.PI * 2);
-  ctx.fillStyle = '#ef4444';
-  ctx.fill();
-  ctx.strokeStyle = '#fff';
+  if (onMine) {
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+  }
+  ctx.strokeStyle = onMine ? '#fff' : 'rgba(239,68,68,0.9)';
   ctx.lineWidth = px(2);
   ctx.stroke();
 }
@@ -238,12 +251,13 @@ const syncOut = () => ($('apOut').textContent = fmtAp(+slider.value));
 slider.addEventListener('input', () => {
   syncOut();
   render();
+  updateViewBtn();
 });
 canvas.addEventListener('pointerdown', onGuess);
 $('next').addEventListener('click', onNext);
 $('view').addEventListener('click', () => {
-  result.view = result.view === 'correct' ? 'guess' : 'correct';
-  showSlice();
+  goTo(shown() === result.guessSlice ? result.slice : result.guessSlice);
+  updateViewBtn();
 });
 $('copy').addEventListener('click', async () => {
   try {
