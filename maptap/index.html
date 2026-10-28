@@ -3,32 +3,72 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fdeaf1" />
+    <meta name="description" content="A daily brain anatomy game: pick the slice, find the region." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E" />
     <title>BrainTap</title>
   </head>
   <body>
-    <main>
-      <header>
-        <h1>BrainTap</h1>
-        <div id="hud">Round <span id="round">1</span>/<span id="rounds">3</span> · Score <span id="total">0</span>/<span id="maxTotal">100</span></div>
+    <div class="shell">
+      <header class="bar">
+        <a class="brand" href="#" id="appName">BrainTap</a>
+        <nav aria-label="Main">
+          <a href="#" data-nav="home">Play</a>
+          <a href="#stats" data-nav="stats">Stats</a>
+        </nav>
       </header>
 
-      <p id="prompt"></p>
-      <p id="sub"></p>
-      <canvas id="c"></canvas>
+      <main>
+        <section id="vHome" class="view"></section>
 
-      <div class="ctl">
-        <label for="ap">AP (Bregma) <output id="apOut"></output> mm</label>
-        <input id="ap" type="range" />
-      </div>
+        <section id="vGame" class="view" hidden>
+          <div id="stage">
+            <div class="hud">
+              <ol id="pips" class="pips" aria-label="Rounds"></ol>
+              <div class="hud-score" aria-label="Score"><b id="total">0</b><span>/100</span></div>
+            </div>
 
-      <div id="result" hidden></div>
-      <div class="btns">
-        <button id="view" hidden></button>
-        <button id="next" hidden>Next</button>
-        <button id="copy" hidden>Copy result</button>
-      </div>
-    <footer>Image credit: <a href="https://atlas.brain-map.org">Allen Institute</a> (Allen Mouse Common Coordinate Framework)</footer>
-    </main>
+            <div class="slide">
+              <div class="slide-label">
+                <span class="find">Find</span>
+                <h2 id="prompt"></h2>
+                <span class="chips"><span id="lvl" class="chip"></span><span id="worth" class="chip"></span></span>
+              </div>
+              <div class="slide-glass"><canvas id="c" aria-label="Brain slice: tap the region you were asked to find"></canvas></div>
+            </div>
+
+            <div class="ctl">
+              <div class="ctl-top">
+                <label for="ap">Slice position (AP)</label>
+                <output id="apOut" for="ap"></output>
+              </div>
+              <div class="ctl-row">
+                <button type="button" id="apPrev" class="nudge" aria-label="One slice toward the back">&#8249;</button>
+                <input id="ap" type="range" />
+                <button type="button" id="apNext" class="nudge" aria-label="One slice toward the front">&#8250;</button>
+              </div>
+              <div class="ctl-ends"><span>Posterior</span><span>Anterior</span></div>
+            </div>
+
+            <div id="result" class="result" role="status" hidden></div>
+            <div class="btns">
+              <button type="button" id="view" class="btn btn-ghost" hidden></button>
+              <button type="button" id="nextBtn" class="btn btn-primary" hidden></button>
+            </div>
+          </div>
+
+          <div id="final" hidden></div>
+        </section>
+
+        <section id="vStats" class="view" hidden></section>
+      </main>
+
+      <footer>
+        <p>Image credit: <a href="https://atlas.brain-map.org">Allen Institute</a> (Allen Mouse Common Coordinate Framework).</p>
+        <p id="credits"></p>
+        <p>Your scores are saved only in this browser. No account, no tracking.</p>
+      </footer>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -46,8 +46,8 @@ export function pickRounds(structures, seed, roundLevels) {
 
 const sum = (a) => a.reduce((x, y) => x + y, 0);
 
-export function shareText({ num, day, scores, maxes }) {
+export function shareText({ num, day, scores, maxes, appName = 'BrainTap' }) {
   const squares = scores.map((s, i) => (s / maxes[i] >= 0.9 ? '🟩' : s / maxes[i] >= 0.5 ? '🟨' : '🟥')).join('');
-  const head = day ? `BrainTap #${num} · ${day}` : 'BrainTap (practice)';
+  const head = day ? `${appName} #${num} · ${day}` : `${appName} (practice)`;
   return `${head}\n🧠 ${sum(scores)}/${sum(maxes)}\n${squares}\n${scores.map((s, i) => `${s}/${maxes[i]}`).join(' · ')}`;
 }
