@@ -1,3 +1,5 @@
+import { berlinDay } from './day.js';
+
 // Seeded daily puzzle selection + share string. Pure, no DOM.
 
 export const EPOCH = '2026-10-19'; // puzzle #1
@@ -23,15 +25,17 @@ function mulberry32(a) {
   };
 }
 
-// UTC date, so every player worldwide gets the same puzzle.
-export const dailyKey = (d = new Date()) => d.toISOString().slice(0, 10);
+// Berlin date (new slide at 00:00 Berlin time), so every player gets the same puzzle.
+export const dailyKey = (d = new Date()) => berlinDay(d.getTime());
 
 export const puzzleNumber = (key) => Math.floor((Date.parse(key) - Date.parse(EPOCH)) / 864e5) + 1;
 
 // Candidate regions per round, from ROUND_RULES (see config.js). A rule can also take half of one level: that level's
 // larger regions (peak cross-section area, when the atlas data has it; otherwise A-Z) are the "first" half, the rest the "second".
-export function buildPools(structures, rules) {
+// daily=true honours a rule's `fixed` region (if the atlas has it); other rounds never draw that region.
+export function buildPools(structures, rules, { daily = true } = {}) {
   const keys = Object.keys(structures);
+  const fixed = daily ? rules.map((r) => r.fixed).filter((k) => k && structures[k]) : [];
   const halves = (level) => {
     const at = keys
       .filter((k) => structures[k].level === level)
@@ -40,9 +44,10 @@ export function buildPools(structures, rules) {
     return { first: at.slice(0, cut), second: at.slice(cut) };
   };
   return rules.map((r) => {
+    if (daily && r.fixed && structures[r.fixed]) return [r.fixed];
     const pool = keys.filter((k) => r.levels.includes(structures[k].level));
     if (r.splitLevel) pool.push(...halves(r.splitLevel.level)[r.splitLevel.part]);
-    return pool;
+    return pool.filter((k) => !fixed.includes(k));
   });
 }
 

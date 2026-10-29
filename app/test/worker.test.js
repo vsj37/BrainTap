@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../worker/index.js';
 import { GROUP_CAP } from '../src/config.js';
+import { berlinDay } from '../src/day.js';
 
 // Minimal D1 shim over node:sqlite
 function makeDB() {
@@ -26,7 +27,7 @@ function makeDB() {
   };
 }
 const env = { DB: makeDB() };
-const today = new Date().toISOString().slice(0, 10);
+const today = berlinDay();
 const addD = (d, n) => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10);
 
 async function call(method, path, { key, body } = {}) {

@@ -1,6 +1,6 @@
 import '@fontsource-variable/hanken-grotesk';
 import './style.css';
-import { APP_NAME, STORAGE_KEY, CLOUD_KEY, TAGLINE, ROUND_PTS, ROUND_RULES, FALLOFF_MM, ART, CREDITS } from './config.js';
+import { APP_NAME, STORAGE_KEY, CLOUD_KEY, TAGLINE, ROUND_PTS, ROUND_RULES, FALLOFF_MM, ART, CREDITS, GALLERY } from './config.js';
 import { largestRing, nearestSlice, regionAt, ringCenter, scoreGuess } from './logic.js';
 import { dailyKey, buildPools, pickRounds, puzzleNumber, shareText } from './daily.js';
 import * as store from './store.js';
@@ -10,12 +10,14 @@ import { createApi, loadCloud, saveCloud } from './api.js';
 import { accountForm, profileSection } from './account.js';
 import { createGroups } from './groups.js';
 import { privacyNode } from './privacy.js';
+import { artNode } from './art.js';
+import { msUntilBerlinMidnight } from './day.js';
 
 const ROUNDS = ROUND_PTS.length;
 const MAX_TOTAL = ROUND_PTS.reduce((a, b) => a + b, 0);
 const qs = new URLSearchParams(location.search);
 const SHOW_HINTS = qs.has('hints'); // dev aid: draw region outlines
-const currentDay = () => qs.get('date') ?? dailyKey(); // UTC date: same puzzle for everyone; ?date= for testing
+const currentDay = () => qs.get('date') ?? dailyKey(); // Berlin date: same puzzle for everyone; ?date= for testing
 const BASE = import.meta.env.BASE_URL;
 const $ = (id) => document.getElementById(id);
 const sum = (a) => a.reduce((x, y) => x + y, 0);
@@ -86,7 +88,7 @@ const accountCtx = {
 const groups = createGroups({ api, getCloud: () => cloud, today: currentDay, go: (hash) => go(hash), account: { form: (opts) => accountForm(accountCtx, opts) } });
 
 // ---------- routing: #  = home, #stats, #groups, #g/<id>, #join/<code>, #privacy, #play = the game in progress ----------
-const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats'), groups: $('vGroups'), privacy: $('vPrivacy') };
+const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats'), groups: $('vGroups'), profile: $('vProfile'), art: $('vArt'), privacy: $('vPrivacy') };
 let game = null;
 let timer = null;
 
@@ -97,15 +99,19 @@ function route() {
   let name = 'home';
   if (hash === '#stats') name = 'stats';
   else if (hash === '#privacy') name = 'privacy';
+  else if (hash === '#profile') name = 'profile';
+  else if (hash === '#art') name = 'art';
   else if (hash === '#groups' || /^#(g|join)\//.test(hash)) name = 'groups';
   else if (hash === '#play' && game) name = 'game';
   for (const [k, el] of Object.entries(views)) el.hidden = k !== name;
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    const on = a.dataset.nav === (name === 'stats' || name === 'groups' ? name : 'home') && name !== 'privacy';
+    const on = a.dataset.nav === (['stats', 'groups', 'profile', 'art'].includes(name) ? name : 'home') && name !== 'privacy';
     on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
   });
   if (name === 'home') renderHome();
   if (name === 'stats') renderStats();
+  if (name === 'profile') renderProfile();
+  if (name === 'art') views.art.replaceChildren(artNode(GALLERY, BASE));
   if (name === 'privacy') views.privacy.replaceChildren(privacyNode());
   if (name === 'groups') {
     if ((m = /^#g\/([0-9a-f]{16})$/.exec(hash))) groups.renderGroup(views.groups, m[1]);
@@ -127,12 +133,14 @@ window.addEventListener('storage', (e) => {
   if (e.key === CLOUD_KEY) {
     cloud = loadCloud(storage);
     if (!views.stats.hidden) renderStats();
+    if (!views.profile.hidden) renderProfile();
     return;
   }
   if (e.key !== STORAGE_KEY) return;
   profile = store.loadProfile(storage);
   if (!views.home.hidden) renderHome();
   if (!views.stats.hidden) renderStats();
+  if (!views.profile.hidden) renderProfile();
 });
 
 // ---------- shared bits ----------
@@ -205,8 +213,8 @@ function renderHome() {
     const live = !qs.get('date'); // a fixed ?date= has no countdown
     const tickCountdown = () => {
       if (!live) return;
-      const ms = store.dayToMs(day) + 864e5 - Date.now();
-      if (ms <= 0) return renderHome(); // midnight UTC passed: show the new day's slide
+      const ms = msUntilBerlinMidnight();
+      if (ms <= 0) return renderHome(); // midnight Berlin time passed: show the new day's slide
       const mins = Math.floor(ms / 60000);
       next.textContent = `Next slide in ${Math.floor(mins / 60)} h ${mins % 60} min`;
     };
@@ -281,22 +289,35 @@ function renderStats() {
           }),
         ),
       ),
-    profileSection(accountCtx),
-    has &&
-      h(
-        'section',
-        { class: 'section' },
-        h('h2', {}, 'Stats in this browser'),
-        h('p', {}, storage.volatile ? 'This browser is not letting the page save anything, so your stats will disappear when you close the tab.' : 'Saved in this browser. With a profile they are also kept online.'),
-        h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => {
-          if (confirm('Erase all stats saved in this browser? Your online profile, if any, is not affected.')) {
-            commit(store.emptyProfile());
-            renderStats();
-          }
-        } }, 'Erase stats in this browser'),
-      ),
+    !cloud && h('p', { class: 'small' }, 'Want to keep your scores online and play with friends? ', h('a', { href: '#profile' }, 'Create a profile'), '.'),
   ];
   views.stats.replaceChildren(...parts.filter(Boolean));
+}
+
+// ---------- profile ----------
+function renderProfile() {
+  const sm = store.summary(profile.history);
+  views.profile.replaceChildren(
+    ...[
+      h('div', { class: 'stats-head' }, h('h1', {}, cloud?.username || 'Your profile')),
+      statStrip([['Played', sm.played], ['Average', sm.avg ?? '–'], ['Best', sm.best ?? '–']], 3),
+      profileSection(accountCtx),
+      h('p', {}, h('a', { class: 'link', href: '#stats' }, 'See your stats'), ' · ', h('a', { class: 'link', href: '#groups' }, 'Your groups')),
+      sm.played > 0 &&
+        h(
+          'section',
+          { class: 'section' },
+          h('h2', {}, 'Data in this browser'),
+          h('p', {}, storage.volatile ? 'This browser is not letting the page save anything, so your stats will disappear when you close the tab.' : 'Your stats are saved in this browser. With a profile they are also kept online.'),
+          h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => {
+            if (confirm('Erase all stats saved in this browser? Your online profile, if any, is not affected.')) {
+              commit(store.emptyProfile());
+              renderProfile();
+            }
+          } }, 'Erase stats in this browser'),
+        ),
+    ].filter(Boolean),
+  );
 }
 
 // ---------- the game ----------
@@ -342,7 +363,7 @@ function goTo(slice) {
 function startGame(mode) {
   const day = currentDay();
   if (mode === 'daily' && profile.history[day]) return go('');
-  const targets = pickRounds(data.structures, mode === 'daily' ? day : String(Math.random()), buildPools(data.structures, ROUND_RULES));
+  const targets = pickRounds(data.structures, mode === 'daily' ? day : String(Math.random()), buildPools(data.structures, ROUND_RULES, { daily: mode === 'daily' }));
   const resumed = mode === 'daily' && profile.progress?.day === day ? profile.progress.scores.slice(0, ROUNDS - 1) : [];
   game = { mode, day, targets, scores: resumed, round: resumed.length, phase: 'select', result: null };
   $('final').hidden = true;

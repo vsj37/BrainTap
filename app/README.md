@@ -13,9 +13,9 @@ npm run build
 - Pick an AP slice with the slider (or the arrow buttons), tap the target. Score decreases linearly with the 3D distance (mm) from your guess
   (AP from your slice, ML/DV from your tap) to the closest point of the target across all slices; 0 at `FALLOFF_MM` (4.0, `src/config.js`).
 - After a guess the slider stays free: browse any slice, the target stays highlighted; a button jumps between the correct slice and yours.
-- Daily puzzle: seeded by the UTC date (`src/daily.js`), one play per day. Refreshing mid-game resumes at the same round.
+- Daily puzzle: seeded by the Berlin date (`src/day.js`; new slide at 00:00 Europe/Berlin, daylight saving handled), one play per day. Round 1 of the daily game is always CA1 (`fixed` in `ROUND_RULES`); practice rounds are random. Refreshing mid-game resumes at the same round.
 - Local stats: browser localStorage (`src/store.js`). No account needed to play.
-- Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Stats page; sign in on another device with the key.
+- Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Profile page; sign in on another device with the key.
 - Groups (`#groups`): create, share the invite link (`#join/<code>`), max `GROUP_CAP` = 40 members. Day / week / month tables (total, games, average, wins). No spoilers: the server hides today's scores until the viewer has played today.
 - Privacy notice at `#privacy` (`src/privacy.js`); fill in `OPERATOR` in `src/config.js`.
 - URL params: `?date=YYYY-MM-DD` (open a specific day, for testing), `?hints` (draw region outlines).
@@ -23,7 +23,7 @@ npm run build
 ## Customise
 
 - **Name:** `APP_NAME` in `src/config.js`. Also change `<title>` in `index.html`. Leave `STORAGE_KEY` alone or players lose their stats.
-- **Your artwork:** drop SVG/PNG files in `public/art/`, name them in `ART` in `src/config.js`, and add credits to `CREDITS`.
+- **Art page (`#art`):** put your neuron pictures in `public/art/` and list them in `GALLERY` in `src/config.js` (`file`, `title`, `alt`, `credit`, optional `href`/`caption`). Deploy and they appear. Tap a picture to enlarge it. `ART.hero` (a picture beside the home title) and `CREDITS` (footer) work the same way.
 - **Colours / type:** CSS variables at the top of `src/style.css`. Font: Aptos if the visitor has it installed (it is Microsoft-licensed and cannot be hosted), otherwise Hanken Grotesk (self-hosted via `@fontsource-variable/hanken-grotesk`, no external requests).
 
 ## Build real slices from Allen CCFv3

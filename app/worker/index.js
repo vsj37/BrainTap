@@ -1,5 +1,6 @@
 // BrainTap API (Cloudflare Worker + D1). Static files are served by the assets binding; only /api/* reaches this code.
 // Auth: "Authorization: Bearer <playerId>.<secret>". The secret is stored hashed. No cookies -> no CSRF.
+import { berlinDay } from '../src/day.js';
 import { ROUND_PTS, GROUP_CAP, MAX_GROUPS_JOINED, MAX_GROUPS_OWNED } from '../src/config.js';
 
 const DAY_MS = 864e5;
@@ -124,7 +125,7 @@ async function groupView(env, g, viewer, period, date, today) {
 async function route(req, env, url) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = req.method;
-  const today = msToDay(Date.now());
+  const today = berlinDay();
   let m;
 
   if (path === '/api/profile' && method === 'POST') {

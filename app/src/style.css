@@ -251,3 +251,30 @@ footer p:empty { display: none; }
 .prose h2 { font-size: 1.2rem; margin-bottom: 6px; }
 .prose p, .prose li { line-height: 1.55; }
 .prose ul { padding-left: 1.2rem; }
+
+@media (max-width: 480px) {
+  .bar { gap: 6px; }
+  .brand { font-size: 1.25rem; }
+  nav { gap: 0; }
+  nav a { padding: 6px 9px; font-size: 0.92rem; }
+}
+
+@media (max-width: 340px) {
+  nav a { padding: 6px 6px; }
+}
+
+/* ----- art ----- */
+.gallery { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.thumb { display: block; width: 100%; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--tissue); cursor: zoom-in; }
+.thumb img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform 0.25s; }
+.thumb:hover img { transform: scale(1.03); }
+.gallery .meta { display: grid; gap: 2px; padding: 8px 2px 0; font-size: 0.9rem; }
+.gallery .credit { color: var(--ink-soft); font-size: 0.82rem; }
+.lightbox { border: 0; border-radius: 16px; padding: 12px; max-width: min(96vw, 900px); background: var(--glass); color: var(--ink); }
+.lightbox::backdrop { background: rgba(13, 11, 42, 0.7); }
+.lightbox img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 10px; }
+.lightbox .cap { margin: 10px 2px; font-weight: 600; }
+@media (max-width: 480px) {
+  .bar { flex-wrap: wrap; }
+  nav { width: 100%; justify-content: space-between; }
+}

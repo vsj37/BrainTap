@@ -10,13 +10,13 @@ export const CLOUD_KEY = 'braintap:cloud:v1';
 export const ROUND_PTS = [25, 35, 40]; // points per round (sum = 100)
 
 // Which regions each round draws from (levels are set per region in tools/regions.csv).
-//   round 1: levels 1-2
+//   round 1: CA1 in the daily game (levels 1-2 in practice)
 //   round 2: level 3 + the first half of level 4
 //   round 3: the second half of level 4 + level 5
 // "First half" of a level = its larger regions (peak cross-section area from the atlas build), so round 2 gets the easier
 // half. Without area data (mock slices) it falls back to A-Z order.
 export const ROUND_RULES = [
-  { levels: [1, 2] },
+  { levels: [1, 2], fixed: 'CA1' }, // the daily game always opens with CA1 (practice rounds use the levels instead)
   { levels: [3], splitLevel: { level: 4, part: 'first' } },
   { levels: [5], splitLevel: { level: 4, part: 'second' } },
 ];
@@ -31,6 +31,15 @@ export const MAX_GROUPS_OWNED = 5; // groups one player can create
 export const ART = {
   hero: '', // e.g. 'neuron.svg' (shown next to the title on the home screen)
 };
+
+// Pictures on the Art page (#art). Put the files in public/art/ and list them here, then deploy. Tips: JPG/WebP/PNG/SVG,
+// about 1600 px on the long side, under ~500 KB each. Always give alt text (what the image shows) and a credit.
+//   { file: 'neuron-1.jpg', title: 'Pyramidal neuron, CA1', alt: 'Branching neuron stained green', credit: 'Jane Doe', href: 'https://example.com', caption: 'optional line' }
+export const GALLERY = [
+
+  { file: 'IMG-20260314-WA0004_lq', title: 'Alice painting', alt: 'Beautiful', credit: 'Alice', href: 'https://…', caption: 'optional' },
+  { file: '974B1E5D-1B1D-47D9-9899-FDC20373CC19', title: 'Blinking neuron', alt: 'pilot', credit: 'Vachan', href: 'https://…', caption: 'optional' }
+];
 
 // Credits for your artwork, shown in the footer. e.g. { text: 'Neuron drawing by Jane Doe', href: 'https://example.com' }
 export const CREDITS = [];

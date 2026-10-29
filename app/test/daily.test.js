@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPools, pickRounds, puzzleNumber, shareText } from '../src/daily.js';
 import { ROUND_RULES } from '../src/config.js';
+import { berlinDay, msUntilBerlinMidnight } from '../src/day.js';
 
 // levels: L1 x3, L2 x2, L3 x3, L4 x5 (areas 50..10), L5 x4
 const defs = { A: 1, B: 1, C: 1, D: 2, E: 2, F: 3, G: 3, H: 3, I: 4, J: 4, K: 4, L: 4, M: 4, N: 5, O: 5, P: 5, Q: 5 };
@@ -51,4 +52,25 @@ test('puzzleNumber and shareText', () => {
   assert.equal(puzzleNumber('2026-10-21'), 3);
   const t = shareText({ num: 3, day: '2026-10-21', scores: [25, 20, 5], maxes: [25, 35, 40] });
   assert.equal(t, 'BrainTap #3 · 2026-10-21\n🧠 50/100\n🟩🟨🟥\n25/25 · 20/35 · 5/40');
+});
+
+test('daily round 1 is always CA1 when the atlas has it; practice and other rounds are unaffected', () => {
+  const withCA1 = { ...structures, CA1: { level: 2 } };
+  const daily = buildPools(withCA1, ROUND_RULES);
+  assert.deepEqual(daily[0], ['CA1']);
+  assert.ok(!daily[1].includes('CA1') && !daily[2].includes('CA1'));
+  for (let d = 1; d <= 20; d++) assert.equal(pickRounds(withCA1, `s${d}`, daily)[0], 'CA1');
+  const practice = buildPools(withCA1, ROUND_RULES, { daily: false });
+  assert.ok(practice[0].includes('CA1') && practice[0].length > 1);
+});
+
+test('berlinDay follows Berlin time, including daylight saving', () => {
+  assert.equal(berlinDay(Date.parse('2026-10-28T22:59:00Z')), '2026-10-28'); // 23:59 CET
+  assert.equal(berlinDay(Date.parse('2026-10-28T23:00:00Z')), '2026-10-29'); // 00:00 CET
+  assert.equal(berlinDay(Date.parse('2026-07-01T21:59:00Z')), '2026-07-01'); // 23:59 CEST
+  assert.equal(berlinDay(Date.parse('2026-07-01T22:00:00Z')), '2026-07-02'); // 00:00 CEST
+  const t = Date.parse('2026-10-28T20:00:00Z'); // 21:00 CET -> 3 h to midnight
+  assert.ok(Math.abs(msUntilBerlinMidnight(t) - 3 * 36e5) <= 1000);
+  const dst = Date.parse('2026-10-24T22:00:00Z'); // 00:00 CEST on the day the clocks go back: that day is 25 h long
+  assert.ok(Math.abs(msUntilBerlinMidnight(dst) - 25 * 36e5) <= 1000);
 });
