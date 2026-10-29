@@ -36,8 +36,7 @@ export const ART = {
 // about 1600 px on the long side, under ~500 KB each. Always give alt text (what the image shows) and a credit.
 //   { file: 'neuron-1.jpg', title: 'Pyramidal neuron, CA1', alt: 'Branching neuron stained green', credit: 'Jane Doe', href: 'https://example.com', caption: 'optional line' }
 export const GALLERY = [
-
-  { file: 'IMG-20260314-WA0004_lq.jpg', title: 'Alice painting', alt: 'Beautiful', credit: 'Alice', href: 'https://…', caption: 'optional' }
+  { file: 'IMG-20260314-WA0004_lq.jpg', title: 'Alice painting', alt: 'Painting by Alice', credit: 'Alice' }
 ];
 
 // Credits for your artwork, shown in the footer. e.g. { text: 'Neuron drawing by Jane Doe', href: 'https://example.com' }
