@@ -59,12 +59,14 @@
                 <input id="ap" type="range" />
                 <button type="button" id="apNext" class="nudge" aria-label="One slice toward the front">&#8250;</button>
               </div>
-              <div class="ctl-ends"><span>Posterior</span><span>Anterior</span></div>
+              <div class="side-row"><span>Posterior</span><div id="sideMap"></div><span>Anterior</span></div>
             </div>
 
             <div id="result" class="result" role="status" hidden></div>
             <div class="btns">
               <button type="button" id="view" class="btn btn-ghost" hidden></button>
+            </div>
+            <div class="btns sticky-next">
               <button type="button" id="nextBtn" class="btn btn-primary" hidden></button>
             </div>
           </div>
@@ -76,6 +78,7 @@
         <section id="vGroups" class="view" hidden></section>
         <section id="vProfile" class="view" hidden></section>
         <section id="vArt" class="view" hidden></section>
+        <section id="vHow" class="view" hidden></section>
         <section id="vPrivacy" class="view" hidden></section>
       </main>
 
@@ -83,7 +86,7 @@
         <p>Image credit: <a href="https://atlas.brain-map.org">Allen Institute</a> (Allen Mouse Common Coordinate Framework).</p>
         <p id="credits"></p>
         <p id="themeSwitch" class="theme"></p>
-        <p>No ads, no tracking, no cookies. Without a profile your scores stay in this browser. <a href="#privacy">Privacy</a></p>
+        <p>No ads, no tracking, no cookies. Without a profile your scores stay in this browser. <a href="#privacy">Privacy</a> · <a href="#how">How to play</a></p>
       </footer>
     </div>
     <script type="module" src="/src/main.js"></script>

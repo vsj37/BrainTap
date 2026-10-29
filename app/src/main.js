@@ -12,6 +12,8 @@ import { createGroups } from './groups.js';
 import { privacyNode } from './privacy.js';
 import { artNode } from './art.js';
 import { factFor } from './facts.js';
+import { createSideMap } from './sidemap.js';
+import { howNode } from './howto.js';
 import { mountThemeSwitch } from './theme.js';
 import { msUntilBerlinMidnight } from './day.js';
 
@@ -91,7 +93,7 @@ const accountCtx = {
 const groups = createGroups({ api, getCloud: () => cloud, today: currentDay, go: (hash) => go(hash), account: { form: (opts) => accountForm(accountCtx, opts) } });
 
 // ---------- routing: #  = home, #stats, #groups, #g/<id>, #join/<code>, #privacy, #play = the game in progress ----------
-const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats'), groups: $('vGroups'), profile: $('vProfile'), art: $('vArt'), privacy: $('vPrivacy') };
+const views = { home: $('vHome'), game: $('vGame'), stats: $('vStats'), groups: $('vGroups'), profile: $('vProfile'), art: $('vArt'), how: $('vHow'), privacy: $('vPrivacy') };
 let game = null;
 let timer = null;
 
@@ -104,6 +106,7 @@ function route() {
   else if (hash === '#privacy') name = 'privacy';
   else if (hash === '#profile') name = 'profile';
   else if (hash === '#art') name = 'art';
+  else if (hash === '#how') name = 'how';
   else if (hash === '#groups' || /^#(g|join)\//.test(hash)) name = 'groups';
   else if (hash === '#play' && game) name = 'game';
   for (const [k, el] of Object.entries(views)) el.hidden = k !== name;
@@ -115,6 +118,12 @@ function route() {
   if (name === 'stats') renderStats();
   if (name === 'profile') renderProfile();
   if (name === 'art') views.art.replaceChildren(artNode(GALLERY, BASE));
+  if (name === 'how') {
+    const mode = afterHow;
+    afterHow = null;
+    storage.setItem(HOW_KEY, '1');
+    views.how.replaceChildren(howNode({ onStart: mode ? () => startGame(mode) : null }));
+  }
   if (name === 'privacy') views.privacy.replaceChildren(privacyNode());
   if (name === 'groups') {
     if ((m = /^#g\/([0-9a-f]{16})$/.exec(hash))) groups.renderGroup(views.groups, m[1]);
@@ -244,10 +253,9 @@ function renderHome() {
     h(
       'section',
       { class: 'how' },
-      h('h2', {}, 'How it works'),
-      h('p', {}, 'Drag the slider to choose a slice. AP is its distance from Bregma in millimetres: positive is toward the nose, negative toward the back.'),
-      h('p', {}, 'Tap the region you were asked to find.'),
-      h('p', {}, `Your score drops with the distance to the nearest part of the region, counting the slice offset too. A miss shows you where it was.`),
+      h('h2', {}, 'How to play'),
+      h('p', {}, 'Drag the slider to pick a slice, then tap the region you were asked to find. The closer you are, the more points you get.'),
+      h('p', {}, h('a', { class: 'link', href: '#how' }, 'Full instructions')),
     ),
   );
 }
@@ -353,8 +361,11 @@ function sliceImage(slice) {
 
 const shown = () => nearestSlice(data.slices, +slider.value);
 const syncOut = () => ($('apOut').textContent = `${fmtAp(+slider.value)} mm`);
+const side = createSideMap(data);
+if (side) $('sideMap').replaceChildren(side.el);
 function onSlide() {
   syncOut();
+  side?.setSlice(shown().bregma);
   render();
   updateViewBtn();
 }
@@ -363,7 +374,16 @@ function goTo(slice) {
   onSlide();
 }
 
+// New players see the instructions once before their first game.
+const HOW_KEY = 'braintap:how-seen';
+const howSeen = () => Object.keys(profile.history).length > 0 || !!storage.getItem(HOW_KEY);
+let afterHow = null;
+
 function startGame(mode) {
+  if (!howSeen()) {
+    afterHow = mode;
+    return go('#how');
+  }
   const day = currentDay();
   if (mode === 'daily' && profile.history[day]) return go('');
   const targets = pickRounds(data.structures, mode === 'daily' ? day : String(Math.random()), buildPools(data.structures, ROUND_RULES, { daily: mode === 'daily' }));
@@ -395,6 +415,7 @@ function nextRound() {
   $('worth').textContent = `${ROUND_PTS[game.round]} pts`;
   for (const id of ['result', 'view', 'nextBtn']) $(id).hidden = true;
   canvas.classList.remove('locked');
+  side?.setTarget(null);
   slider.value = mid;
   renderPips();
   onSlide();
@@ -415,6 +436,7 @@ function onGuess(e) {
   game.phase = 'result';
   game.result = { ...r, p, key, clicked: regionAt(r.guessSlice, p) };
   canvas.classList.add('locked');
+  side?.setTarget({ range: data.structures[key].apRange, ap: r.slice.bregma });
 
   if (game.mode === 'daily') {
     commit(
