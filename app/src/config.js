@@ -40,8 +40,14 @@ export const GALLERY = [
   { file: 'VID-20261029-WA0002.mp4', title: 'GCaMP Mouse Neuron!', alt: 'Video of a mouse neuron expressing GCaMP and a calcium spike', credit: 'Vachan' }
 ];
 
+export const SIDE_IMAGE = { file: 'mouse-brain-lateral.png', flip: true, x0: 0.016, x1: 0.984, y0: 0.04, y1: 0.95 };
+
 // Credits for your artwork, shown in the footer. e.g. { text: 'Neuron drawing by Jane Doe', href: 'https://example.com' }
-export const CREDITS = [];
+export const CREDITS = [
+
+{ text: 'Mouse brain lateral view by DBCLS (CC BY 3.0), cropped and flipped horizontally', href: 'https://commons.wikimedia.org/wiki/File:Mouse_brain_lateral_view.png' }
+
+];
 
 // Privacy notice (page #privacy). FILL THESE IN before launch: they are shown to players as the responsible party.
 export const OPERATOR = {

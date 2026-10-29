@@ -344,3 +344,13 @@ footer p:empty { display: none; }
 .howto ul { padding-left: 1.2rem; }
 .howto li { line-height: 1.5; }
 .steps li { line-height: 1.5; }
+
+/* side view as a picture */
+.side-pic { position: relative; display: inline-block; line-height: 0; }
+.side-img { height: 100%; width: auto; display: block; user-select: none; -webkit-user-drag: none; }
+.side-img.flip { transform: scaleX(-1); }
+.side-pic > div { position: absolute; }
+.si-cur { background: rgba(191, 74, 120, 0.25); border: 2px solid var(--pink-ink); border-radius: 2px; box-sizing: border-box; min-width: 4px; }
+.si-band { background: var(--gfp); opacity: 0.3; }
+.si-right { background: var(--gfp-ink); min-width: 2px; }
+[hidden] { display: none !important; }

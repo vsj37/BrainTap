@@ -1,7 +1,8 @@
 // Side (sagittal) view: a silhouette of the brain with a rectangle marking the current slice's position along the AP axis.
 // The silhouette is built from the dorsal/ventral extent of the whole-brain outline of every coronal slice, so it needs
 // no extra data. Anterior is on the right, matching the slider.
-import { svgEl } from './ui.js';
+import { svgEl, h } from './ui.js';
+import * as cfg from './config.js';
 
 // -> { x0, x1, y0, y1 (mm), pts: [{ ap, top, bot }] sorted by AP, top/bot = dorsal/ventral edge in mm }
 export function sideProfile(data) {
@@ -31,7 +32,35 @@ export function extentAt(profile, ap) {
   return best;
 }
 
+// Picture version: your own side-view image with the rectangle laid over it. Calibrated in config.js (SIDE_IMAGE), in the
+// picture as DISPLAYED (after the optional flip, front on the right): x0/x1 = where the back / front end of the brain are,
+// y0/y1 = top / bottom of the brain, all as fractions (0-1) of the picture's width / height.
+export function createSideImage(data, img, base, { height = 76 } = {}) {
+  const [a0, a1] = data.apRange;
+  const { x0 = 0.04, x1 = 0.96, y0 = 0.1, y1 = 0.9 } = img;
+  const pct = (v) => `${(v * 100).toFixed(2)}%`;
+  const xAt = (ap) => x0 + ((ap - a0) / (a1 - a0)) * (x1 - x0);
+  const pic = h('img', { class: `side-img${img.flip ? ' flip' : ''}`, src: `${base}art/${encodeURIComponent(img.file)}`, alt: '', draggable: 'false' });
+  const band = h('div', { class: 'si-band', hidden: true });
+  const right = h('div', { class: 'si-right', hidden: true });
+  const cur = h('div', { class: 'si-cur' });
+  const el = h('div', { class: 'side-pic', role: 'img', 'aria-label': 'Side view of the brain. The rectangle shows where the current slice is.', style: `height:${height}px` }, pic, band, right, cur);
+  const place = (node, xa, xb) => { node.style.left = pct(xa); node.style.width = pct(xb - xa); node.style.top = pct(y0 - 0.06); node.style.height = pct(y1 - y0 + 0.12); };
+  const slab = Math.max(0.015, (x1 - x0) / 40);
+  return {
+    el,
+    setSlice(ap) { place(cur, xAt(ap) - slab / 2, xAt(ap) + slab / 2); },
+    setTarget(info) {
+      band.hidden = right.hidden = !info;
+      if (!info) return;
+      place(band, xAt(Math.max(info.range[0], a0)), xAt(Math.min(info.range[1], a1)));
+      place(right, xAt(info.ap) - 0.004, xAt(info.ap) + 0.004);
+    },
+  };
+}
+
 export function createSideMap(data, { height = 56 } = {}) {
+  if (cfg.SIDE_IMAGE?.file) return createSideImage(data, cfg.SIDE_IMAGE, import.meta.env?.BASE_URL ?? '/');
   const prof = sideProfile(data);
   if (!prof) return null;
   const pad = 0.25; // mm of breathing room around the silhouette
