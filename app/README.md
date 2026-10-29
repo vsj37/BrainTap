@@ -18,6 +18,9 @@ npm run build
 - Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Profile page; sign in on another device with the key.
 - Groups (`#groups`): create, share the invite link (`#join/<code>`), max `GROUP_CAP` = 40 members. Day / week / month tables (total, games, average, wins). No spoilers: the server hides today's scores until the viewer has played today.
 - Privacy notice at `#privacy` (`src/privacy.js`); fill in `OPERATOR` in `src/config.js`.
+- After each guess a short fun fact appears (`src/facts.js`: region facts keyed by acronym, otherwise a neuro pun or neuroscientist story). Add your own lines there.
+- Dark mode follows the device; a footer switch (Auto / Light / Dark) overrides it (`src/theme.js`, colours in `:root[data-theme='dark']` in `src/style.css`).
+- The Next / See results buttons are pinned to the bottom of the screen on phones, so no scrolling is needed after a guess.
 - URL params: `?date=YYYY-MM-DD` (open a specific day, for testing), `?hints` (draw region outlines).
 
 ## Customise

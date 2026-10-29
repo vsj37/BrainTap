@@ -36,7 +36,8 @@ export const ART = {
 // about 1600 px on the long side, under ~500 KB each. Always give alt text (what the image shows) and a credit.
 //   { file: 'neuron-1.jpg', title: 'Pyramidal neuron, CA1', alt: 'Branching neuron stained green', credit: 'Jane Doe', href: 'https://example.com', caption: 'optional line' }
 export const GALLERY = [
-  { file: 'IMG-20260314-WA0004_lq.jpg', title: 'Alice painting', alt: 'Painting by Alice', credit: 'Alice' }
+  { file: 'IMG-20260314-WA0004_lq.jpg', title: 'Alice painting', alt: 'Painting by Alice', credit: 'Alice' },
+  { file: 'VID-20261029-WA0002.mp4', title: 'GCaMP Mouse Neuron!', alt: 'Video of a mouse neuron expressing GCaMP and a calcium spike', credit: 'Vachan' }
 ];
 
 // Credits for your artwork, shown in the footer. e.g. { text: 'Neuron drawing by Jane Doe', href: 'https://example.com' }

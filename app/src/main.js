@@ -11,6 +11,8 @@ import { accountForm, profileSection } from './account.js';
 import { createGroups } from './groups.js';
 import { privacyNode } from './privacy.js';
 import { artNode } from './art.js';
+import { factFor } from './facts.js';
+import { mountThemeSwitch } from './theme.js';
 import { msUntilBerlinMidnight } from './day.js';
 
 const ROUNDS = ROUND_PTS.length;
@@ -24,6 +26,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
 const reducedMotion = !window.matchMedia || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 document.title = APP_NAME;
+mountThemeSwitch($('themeSwitch'));
 $('appName').textContent = APP_NAME;
 for (const c of CREDITS) {
   $('credits').append(c.href ? h('a', { href: c.href }, c.text) : c.text, ' ');
@@ -440,6 +443,10 @@ function showResult() {
   $('result').replaceChildren(
     h('div', { class: 'res-head' }, pts, h('span', { class: 'of', 'aria-hidden': 'true' }, `/${r.maxPts}`), h('span', { class: 'sr-only' }, `${r.pts} of ${r.maxPts} points.`), h('p', { class: `verdict verdict-${t}` }, verdict(r))),
     ...lines,
+    (() => {
+      const f = factFor(r.key, `${game.day}|${game.round}`);
+      return h('div', { class: 'fact' }, h('b', {}, f.kind), h('p', {}, f.text));
+    })(),
   );
   $('result').hidden = false;
   countUp(pts, r.pts);
