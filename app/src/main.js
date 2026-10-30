@@ -338,7 +338,10 @@ const slider = $('ap');
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 canvas.width = Math.round(W * S * dpr);
 canvas.height = Math.round(H * S * dpr);
-const px = (n) => n / S; // line widths / font sizes in slice units
+// Zoom/pan of the slice only (not the page). The visible window is [view.x, view.x + W/k] x [view.y, view.y + H/k] in slice units.
+const MAX_ZOOM = 8;
+const view = { k: 1, x: 0, y: 0 };
+const px = (n) => n / (S * view.k); // line widths / font sizes in slice units (constant size on screen while zooming)
 const step = data.meta?.stepMm ?? 0.05;
 const [apMin, apMax] = data.apRange;
 slider.min = apMin;
@@ -416,6 +419,7 @@ function nextRound() {
   for (const id of ['result', 'view', 'nextBtn']) $(id).hidden = true;
   canvas.classList.remove('locked');
   side?.setTarget(null);
+  resetZoom();
   slider.value = mid;
   renderPips();
   onSlide();
@@ -428,8 +432,8 @@ function verdict(r) {
 
 function onGuess(e) {
   if (!game || game.phase !== 'select') return;
-  const box = canvas.getBoundingClientRect();
-  const p = [((e.clientX - box.left) * W) / box.width, ((e.clientY - box.top) * H) / box.height];
+  if (suppressClick) return; // the end of a pan / pinch is not a guess
+  const p = toSlice(e.clientX, e.clientY);
   const key = game.targets[game.round];
   const r = scoreGuess({ data, ap: +slider.value, p, key, maxPts: ROUND_PTS[game.round], falloffMm: FALLOFF_MM });
   game.scores.push(r.pts);
@@ -534,8 +538,10 @@ function label(text, [x, y]) {
 
 function render() {
   if (!game) return;
-  ctx.setTransform(S * dpr, 0, 0, S * dpr, 0, 0);
-  ctx.clearRect(0, 0, W, H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const m = S * dpr * view.k;
+  ctx.setTransform(m, 0, 0, m, -view.x * m, -view.y * m);
   const slice = shown();
   const img = sliceImage(slice);
   if (img) {
@@ -587,6 +593,123 @@ function render() {
   ctx.lineWidth = px(2);
   ctx.stroke();
 }
+
+// ---------- zoom / pan (slice only) ----------
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+let suppressClick = false; // set while a pan/pinch is in progress so lifting the finger/mouse is not taken as a guess
+
+function toSlice(clientX, clientY) {
+  const box = canvas.getBoundingClientRect();
+  return [view.x + (((clientX - box.left) / box.width) * W) / view.k, view.y + (((clientY - box.top) / box.height) * H) / view.k];
+}
+function clampView() {
+  view.x = clamp(view.x, 0, W - W / view.k);
+  view.y = clamp(view.y, 0, H - H / view.k);
+}
+function updateZoomUi() {
+  $('zLevel').textContent = `${+view.k.toFixed(1)}×`;
+  $('zOut').disabled = view.k <= 1;
+  $('zIn').disabled = view.k >= MAX_ZOOM;
+  $('zReset').hidden = view.k <= 1;
+  canvas.classList.toggle('zoomed', view.k > 1);
+}
+function zoomAt(factor, clientX, clientY) {
+  const box = canvas.getBoundingClientRect();
+  const fx = (clientX - box.left) / box.width;
+  const fy = (clientY - box.top) / box.height;
+  const sx = view.x + (fx * W) / view.k; // slice point under the cursor stays under it
+  const sy = view.y + (fy * H) / view.k;
+  view.k = clamp(view.k * factor, 1, MAX_ZOOM);
+  view.x = sx - (fx * W) / view.k;
+  view.y = sy - (fy * H) / view.k;
+  clampView();
+  updateZoomUi();
+  render();
+}
+function panBy(dxPx, dyPx) {
+  const box = canvas.getBoundingClientRect();
+  view.x -= (dxPx * W) / view.k / box.width;
+  view.y -= (dyPx * H) / view.k / box.height;
+  clampView();
+  render();
+}
+function resetZoom() {
+  view.k = 1;
+  view.x = 0;
+  view.y = 0;
+  updateZoomUi();
+}
+function zoomFromCentre(factor) {
+  const box = canvas.getBoundingClientRect();
+  zoomAt(factor, box.left + box.width / 2, box.top + box.height / 2);
+}
+
+const pointers = new Map(); // active pointers on the canvas: id -> { x, y, sx, sy, moved }
+let lastPinch = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (!pointers.size) suppressClick = false;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false });
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported / already released */ }
+  if (pointers.size === 2) {
+    suppressClick = true;
+    const [a, b] = [...pointers.values()];
+    lastPinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x;
+  const dy = e.clientY - p.y;
+  p.x = e.clientX;
+  p.y = e.clientY;
+  if (pointers.size === 2 && lastPinch) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    if (lastPinch.d > 0 && d > 0) zoomAt(d / lastPinch.d, mx, my);
+    panBy(mx - lastPinch.mx, my - lastPinch.my);
+    lastPinch = { d, mx, my };
+  } else if (pointers.size === 1 && view.k > 1) {
+    if (!p.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 6) p.moved = true; // small wobble still counts as a tap
+    if (p.moved) {
+      suppressClick = true;
+      panBy(dx, dy);
+    }
+  }
+});
+const endPointer = (e) => {
+  pointers.delete(e.pointerId);
+  lastPinch = null;
+  for (const p of pointers.values()) p.moved = true; // after a pinch the remaining finger just pans
+};
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+
+// Mouse wheel and trackpad pinch (which browsers send as ctrl+wheel) zoom the slice instead of the whole page.
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
+  },
+  { passive: false },
+);
+// Safari desktop reports trackpad pinch as gesture events; touch pinches are handled by the pointer code above.
+let lastGesture = 1;
+canvas.addEventListener('gesturestart', (e) => { e.preventDefault(); lastGesture = 1; });
+canvas.addEventListener('gesturechange', (e) => {
+  e.preventDefault();
+  if (!pointers.size) zoomAt(e.scale / lastGesture, e.clientX, e.clientY);
+  lastGesture = e.scale;
+});
+
+$('zIn').addEventListener('click', () => zoomFromCentre(1.5));
+$('zOut').addEventListener('click', () => zoomFromCentre(1 / 1.5));
+$('zReset').addEventListener('click', () => { resetZoom(); render(); });
 
 // ---------- wiring ----------
 slider.addEventListener('input', onSlide);

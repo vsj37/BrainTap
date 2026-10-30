@@ -10,13 +10,14 @@ export const CLOUD_KEY = 'braintap:cloud:v1';
 export const ROUND_PTS = [25, 35, 40]; // points per round (sum = 100)
 
 // Which regions each round draws from (levels are set per region in tools/regions.csv).
-//   round 1: CA1 in the daily game (levels 1-2 in practice)
+//   round 1: any region of level 1 or 2
 //   round 2: level 3 + the first half of level 4
 //   round 3: the second half of level 4 + level 5
 // "First half" of a level = its larger regions (peak cross-section area from the atlas build), so round 2 gets the easier
 // half. Without area data (mock slices) it falls back to A-Z order.
+// A rule can also pin one region in the daily game only, e.g. { levels: [1, 2], fixed: 'CA1' } (practice ignores `fixed`).
 export const ROUND_RULES = [
-  { levels: [1, 2], fixed: 'CA1' }, // the daily game always opens with CA1 (practice rounds use the levels instead)
+  { levels: [1, 2] },
   { levels: [3], splitLevel: { level: 4, part: 'first' } },
   { levels: [5], splitLevel: { level: 4, part: 'second' } },
 ];

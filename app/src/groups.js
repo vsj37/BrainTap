@@ -161,10 +161,11 @@ export function createGroups(ctx) {
       { class: 'more' },
       h('summary', {}, 'Manage members'),
       h('ul', { class: 'members' }, v.players.filter((p) => p.id !== me).map((p) => h('li', {}, h('span', {}, p.username), h('button', { type: 'button', class: 'btn btn-ghost small-btn', onclick: act(async () => { if (!confirm(`Remove ${p.username} from the group?`)) throw new Error(''); await ctx.api.removeMember(id, p.id); }, rerender) }, 'Remove')))),
-      h('button', { type: 'button', class: 'btn btn-ghost danger', onclick: act(async () => { if (!confirm('Delete this group for everyone?')) throw new Error(''); await ctx.api.deleteGroup(id); }, () => ctx.go('#groups')) }, 'Delete group'),
     );
+    // Owner-only, always visible (not hidden in the members menu). Asks for confirmation; the server re-checks ownership.
+    const del = v.group.owner && h('button', { type: 'button', class: 'btn btn-ghost danger', onclick: act(async () => { if (!confirm(`Delete "${v.group.name}" for everyone? All members are removed and this cannot be undone.`)) throw new Error(''); await ctx.api.deleteGroup(id); }, () => ctx.go('#groups')) }, 'Delete group');
 
-    root.replaceChildren(...[head, seg, nav, lockNote, h('div', { class: 'table-wrap' }, table), invite, h('div', { class: 'btns' }, leave), manage, msg].filter(Boolean));
+    root.replaceChildren(...[head, seg, nav, lockNote, h('div', { class: 'table-wrap' }, table), invite, h('div', { class: 'btns' }, leave, del), manage, msg].filter(Boolean));
   }
 
   return { renderList, renderJoin, renderGroup };

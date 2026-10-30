@@ -54,13 +54,24 @@ test('puzzleNumber and shareText', () => {
   assert.equal(t, 'BrainTap #3 · 2026-10-21\n🧠 50/100\n🟩🟨🟥\n25/25 · 20/35 · 5/40');
 });
 
-test('daily round 1 is always CA1 when the atlas has it; practice and other rounds are unaffected', () => {
+test('default rules do not pin a region: daily round 1 can be any level 1-2 region, same as practice', () => {
+  assert.ok(ROUND_RULES.every((r) => !r.fixed));
   const withCA1 = { ...structures, CA1: { level: 2 } };
   const daily = buildPools(withCA1, ROUND_RULES);
+  assert.deepEqual([...daily[0]].sort(), ['A', 'B', 'C', 'CA1', 'D', 'E']);
+  assert.deepEqual(daily, buildPools(withCA1, ROUND_RULES, { daily: false }));
+  const firsts = new Set();
+  for (let d = 1; d <= 60; d++) firsts.add(pickRounds(withCA1, `s${d}`, daily)[0]);
+  assert.ok(firsts.size > 1);
+});
+
+test('a rule with `fixed` still pins that region in the daily game only (other rounds never draw it)', () => {
+  const withCA1 = { ...structures, CA1: { level: 2 } };
+  const rules = [{ levels: [1, 2], fixed: 'CA1' }, ...ROUND_RULES.slice(1)];
+  const daily = buildPools(withCA1, rules);
   assert.deepEqual(daily[0], ['CA1']);
   assert.ok(!daily[1].includes('CA1') && !daily[2].includes('CA1'));
-  for (let d = 1; d <= 20; d++) assert.equal(pickRounds(withCA1, `s${d}`, daily)[0], 'CA1');
-  const practice = buildPools(withCA1, ROUND_RULES, { daily: false });
+  const practice = buildPools(withCA1, rules, { daily: false });
   assert.ok(practice[0].includes('CA1') && practice[0].length > 1);
 });
 

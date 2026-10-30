@@ -46,7 +46,16 @@
                 <h2 id="prompt"></h2>
                 <span class="chips"><span id="lvl" class="chip"></span><span id="worth" class="chip"></span></span>
               </div>
-              <div class="slide-glass"><canvas id="c" aria-label="Brain slice: tap the region you were asked to find"></canvas></div>
+              <div class="slide-glass">
+                <canvas id="c" aria-label="Brain slice: tap the region you were asked to find"></canvas>
+                <div class="zoom-ctl" role="group" aria-label="Zoom the slice">
+                  <button type="button" id="zOut" class="zbtn" aria-label="Zoom out" disabled>&minus;</button>
+                  <output id="zLevel" class="zlevel" for="zIn zOut">1&times;</output>
+                  <button type="button" id="zIn" class="zbtn" aria-label="Zoom in">+</button>
+                  <button type="button" id="zReset" class="zbtn zreset" aria-label="Reset zoom" hidden>Reset</button>
+                </div>
+              </div>
+              <p class="small zoom-hint">Zoom the slice with + / −, the mouse wheel or a two-finger pinch (the page itself stays put). Drag to move when zoomed in.</p>
             </div>
 
             <div class="ctl">

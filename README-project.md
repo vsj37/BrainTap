@@ -11,7 +11,7 @@ Live: deployed on Cloudflare Workers (see [Deploying](#deploying)). Brain slices
 ## Game rules (as implemented)
 
 - 3 rounds worth **25 / 35 / 40** points (100 total).
-- **Round 1 of the daily game is always CA1.** Round 2 draws from level 3 + the *larger half* of level 4; round 3 from the *smaller half* of level 4 + level 5 (`ROUND_RULES` in `src/config.js`; "larger" = peak cross-section area from the atlas build, A-Z if no area data). Practice rounds ignore the CA1 rule and use levels 1-2 for round 1.
+- **Round 1 draws from any level 1-2 region.** Round 2 draws from level 3 + the *larger half* of level 4; round 3 from the *smaller half* of level 4 + level 5 (`ROUND_RULES` in `src/config.js`; "larger" = peak cross-section area from the atlas build, A-Z if no area data). A rule may still pin a region in the daily game with `fixed: 'ACRONYM'` (none is set now).
 - Score = `maxPts * max(0, 1 - dist3 / FALLOFF_MM)` with `FALLOFF_MM = 4.0`. `dist3` is the 3D distance from the guess (AP from the chosen slice, ML/DV from the tap) to the **closest point of the target region across all slices**. Code: `scoreGuess`, `closest3D` in `src/logic.js`.
 - After a guess the slider stays free, the correct slice and your slice can be browsed, and a short fun fact / neuro pun / neuroscientist story appears (`src/facts.js`).
 - **One daily play per day**; the daily puzzle is seeded by the Berlin date (xmur3 + mulberry32). Puzzle #1 = 2026-10-19 (`EPOCH` in `src/daily.js`). Practice rounds are unlimited and don't count.

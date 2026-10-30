@@ -13,7 +13,7 @@ npm run build
 - Pick an AP slice with the slider (or the arrow buttons), tap the target. Score decreases linearly with the 3D distance (mm) from your guess
   (AP from your slice, ML/DV from your tap) to the closest point of the target across all slices; 0 at `FALLOFF_MM` (4.0, `src/config.js`).
 - After a guess the slider stays free: browse any slice, the target stays highlighted; a button jumps between the correct slice and yours.
-- Daily puzzle: seeded by the Berlin date (`src/day.js`; new slide at 00:00 Europe/Berlin, daylight saving handled), one play per day. Round 1 of the daily game is always CA1 (`fixed` in `ROUND_RULES`); practice rounds are random. Refreshing mid-game resumes at the same round.
+- Daily puzzle: seeded by the Berlin date (`src/day.js`; new slide at 00:00 Europe/Berlin, daylight saving handled), one play per day. Round 1 draws from any level 1-2 region (`ROUND_RULES`; an optional `fixed` can pin a region in the daily game). Refreshing mid-game resumes at the same round.
 - Local stats: browser localStorage (`src/store.js`). No account needed to play.
 - Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Profile page; sign in on another device with the key.
 - Groups (`#groups`): create, share the invite link (`#join/<code>`), max `GROUP_CAP` = 40 members. Day / week / month tables (total, games, average, wins). No spoilers: the server hides today's scores until the viewer has played today.

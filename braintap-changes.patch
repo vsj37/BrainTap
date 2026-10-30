@@ -1,0 +1,321 @@
+diff --git a/README-project.md b/README-project.md
+index 7c13da5..8eb42a2 100644
+--- a/README-project.md
++++ b/README-project.md
+@@ -11,7 +11,7 @@ Live: deployed on Cloudflare Workers (see [Deploying](#deploying)). Brain slices
+ ## Game rules (as implemented)
+ 
+ - 3 rounds worth **25 / 35 / 40** points (100 total).
+-- **Round 1 of the daily game is always CA1.** Round 2 draws from level 3 + the *larger half* of level 4; round 3 from the *smaller half* of level 4 + level 5 (`ROUND_RULES` in `src/config.js`; "larger" = peak cross-section area from the atlas build, A-Z if no area data). Practice rounds ignore the CA1 rule and use levels 1-2 for round 1.
++- **Round 1 draws from any level 1-2 region.** Round 2 draws from level 3 + the *larger half* of level 4; round 3 from the *smaller half* of level 4 + level 5 (`ROUND_RULES` in `src/config.js`; "larger" = peak cross-section area from the atlas build, A-Z if no area data). A rule may still pin a region in the daily game with `fixed: 'ACRONYM'` (none is set now).
+ - Score = `maxPts * max(0, 1 - dist3 / FALLOFF_MM)` with `FALLOFF_MM = 4.0`. `dist3` is the 3D distance from the guess (AP from the chosen slice, ML/DV from the tap) to the **closest point of the target region across all slices**. Code: `scoreGuess`, `closest3D` in `src/logic.js`.
+ - After a guess the slider stays free, the correct slice and your slice can be browsed, and a short fun fact / neuro pun / neuroscientist story appears (`src/facts.js`).
+ - **One daily play per day**; the daily puzzle is seeded by the Berlin date (xmur3 + mulberry32). Puzzle #1 = 2026-10-19 (`EPOCH` in `src/daily.js`). Practice rounds are unlimited and don't count.
+diff --git a/app/README.md b/app/README.md
+index 58542c4..237c44b 100644
+--- a/app/README.md
++++ b/app/README.md
+@@ -13,7 +13,7 @@ npm run build
+ - Pick an AP slice with the slider (or the arrow buttons), tap the target. Score decreases linearly with the 3D distance (mm) from your guess
+   (AP from your slice, ML/DV from your tap) to the closest point of the target across all slices; 0 at `FALLOFF_MM` (4.0, `src/config.js`).
+ - After a guess the slider stays free: browse any slice, the target stays highlighted; a button jumps between the correct slice and yours.
+-- Daily puzzle: seeded by the Berlin date (`src/day.js`; new slide at 00:00 Europe/Berlin, daylight saving handled), one play per day. Round 1 of the daily game is always CA1 (`fixed` in `ROUND_RULES`); practice rounds are random. Refreshing mid-game resumes at the same round.
++- Daily puzzle: seeded by the Berlin date (`src/day.js`; new slide at 00:00 Europe/Berlin, daylight saving handled), one play per day. Round 1 draws from any level 1-2 region (`ROUND_RULES`; an optional `fixed` can pin a region in the daily game). Refreshing mid-game resumes at the same round.
+ - Local stats: browser localStorage (`src/store.js`). No account needed to play.
+ - Optional cloud profile: a username only (no login/email). The browser holds a recovery key (`id.secret`); the server stores only its hash. Create it on the Profile page; sign in on another device with the key.
+ - Groups (`#groups`): create, share the invite link (`#join/<code>`), max `GROUP_CAP` = 40 members. Day / week / month tables (total, games, average, wins). No spoilers: the server hides today's scores until the viewer has played today.
+diff --git a/app/index.html b/app/index.html
+index db79756..f3a9a38 100644
+--- a/app/index.html
++++ b/app/index.html
+@@ -46,7 +46,16 @@
+                 <h2 id="prompt"></h2>
+                 <span class="chips"><span id="lvl" class="chip"></span><span id="worth" class="chip"></span></span>
+               </div>
+-              <div class="slide-glass"><canvas id="c" aria-label="Brain slice: tap the region you were asked to find"></canvas></div>
++              <div class="slide-glass">
++                <canvas id="c" aria-label="Brain slice: tap the region you were asked to find"></canvas>
++                <div class="zoom-ctl" role="group" aria-label="Zoom the slice">
++                  <button type="button" id="zOut" class="zbtn" aria-label="Zoom out" disabled>&minus;</button>
++                  <output id="zLevel" class="zlevel" for="zIn zOut">1&times;</output>
++                  <button type="button" id="zIn" class="zbtn" aria-label="Zoom in">+</button>
++                  <button type="button" id="zReset" class="zbtn zreset" aria-label="Reset zoom" hidden>Reset</button>
++                </div>
++              </div>
++              <p class="small zoom-hint">Zoom the slice with + / −, the mouse wheel or a two-finger pinch (the page itself stays put). Drag to move when zoomed in.</p>
+             </div>
+ 
+             <div class="ctl">
+diff --git a/app/src/config.js b/app/src/config.js
+index d4a1f95..c0c4db7 100644
+--- a/app/src/config.js
++++ b/app/src/config.js
+@@ -10,13 +10,14 @@ export const CLOUD_KEY = 'braintap:cloud:v1';
+ export const ROUND_PTS = [25, 35, 40]; // points per round (sum = 100)
+ 
+ // Which regions each round draws from (levels are set per region in tools/regions.csv).
+-//   round 1: CA1 in the daily game (levels 1-2 in practice)
++//   round 1: any region of level 1 or 2
+ //   round 2: level 3 + the first half of level 4
+ //   round 3: the second half of level 4 + level 5
+ // "First half" of a level = its larger regions (peak cross-section area from the atlas build), so round 2 gets the easier
+ // half. Without area data (mock slices) it falls back to A-Z order.
++// A rule can also pin one region in the daily game only, e.g. { levels: [1, 2], fixed: 'CA1' } (practice ignores `fixed`).
+ export const ROUND_RULES = [
+-  { levels: [1, 2], fixed: 'CA1' }, // the daily game always opens with CA1 (practice rounds use the levels instead)
++  { levels: [1, 2] },
+   { levels: [3], splitLevel: { level: 4, part: 'first' } },
+   { levels: [5], splitLevel: { level: 4, part: 'second' } },
+ ];
+diff --git a/app/src/groups.js b/app/src/groups.js
+index a05cbe7..95cb180 100644
+--- a/app/src/groups.js
++++ b/app/src/groups.js
+@@ -161,10 +161,11 @@ export function createGroups(ctx) {
+       { class: 'more' },
+       h('summary', {}, 'Manage members'),
+       h('ul', { class: 'members' }, v.players.filter((p) => p.id !== me).map((p) => h('li', {}, h('span', {}, p.username), h('button', { type: 'button', class: 'btn btn-ghost small-btn', onclick: act(async () => { if (!confirm(`Remove ${p.username} from the group?`)) throw new Error(''); await ctx.api.removeMember(id, p.id); }, rerender) }, 'Remove')))),
+-      h('button', { type: 'button', class: 'btn btn-ghost danger', onclick: act(async () => { if (!confirm('Delete this group for everyone?')) throw new Error(''); await ctx.api.deleteGroup(id); }, () => ctx.go('#groups')) }, 'Delete group'),
+     );
++    // Owner-only, always visible (not hidden in the members menu). Asks for confirmation; the server re-checks ownership.
++    const del = v.group.owner && h('button', { type: 'button', class: 'btn btn-ghost danger', onclick: act(async () => { if (!confirm(`Delete "${v.group.name}" for everyone? All members are removed and this cannot be undone.`)) throw new Error(''); await ctx.api.deleteGroup(id); }, () => ctx.go('#groups')) }, 'Delete group');
+ 
+-    root.replaceChildren(...[head, seg, nav, lockNote, h('div', { class: 'table-wrap' }, table), invite, h('div', { class: 'btns' }, leave), manage, msg].filter(Boolean));
++    root.replaceChildren(...[head, seg, nav, lockNote, h('div', { class: 'table-wrap' }, table), invite, h('div', { class: 'btns' }, leave, del), manage, msg].filter(Boolean));
+   }
+ 
+   return { renderList, renderJoin, renderGroup };
+diff --git a/app/src/main.js b/app/src/main.js
+index 1d00fce..61d14d8 100644
+--- a/app/src/main.js
++++ b/app/src/main.js
+@@ -338,7 +338,10 @@ const slider = $('ap');
+ const dpr = Math.min(window.devicePixelRatio || 1, 2);
+ canvas.width = Math.round(W * S * dpr);
+ canvas.height = Math.round(H * S * dpr);
+-const px = (n) => n / S; // line widths / font sizes in slice units
++// Zoom/pan of the slice only (not the page). The visible window is [view.x, view.x + W/k] x [view.y, view.y + H/k] in slice units.
++const MAX_ZOOM = 8;
++const view = { k: 1, x: 0, y: 0 };
++const px = (n) => n / (S * view.k); // line widths / font sizes in slice units (constant size on screen while zooming)
+ const step = data.meta?.stepMm ?? 0.05;
+ const [apMin, apMax] = data.apRange;
+ slider.min = apMin;
+@@ -416,6 +419,7 @@ function nextRound() {
+   for (const id of ['result', 'view', 'nextBtn']) $(id).hidden = true;
+   canvas.classList.remove('locked');
+   side?.setTarget(null);
++  resetZoom();
+   slider.value = mid;
+   renderPips();
+   onSlide();
+@@ -428,8 +432,8 @@ function verdict(r) {
+ 
+ function onGuess(e) {
+   if (!game || game.phase !== 'select') return;
+-  const box = canvas.getBoundingClientRect();
+-  const p = [((e.clientX - box.left) * W) / box.width, ((e.clientY - box.top) * H) / box.height];
++  if (suppressClick) return; // the end of a pan / pinch is not a guess
++  const p = toSlice(e.clientX, e.clientY);
+   const key = game.targets[game.round];
+   const r = scoreGuess({ data, ap: +slider.value, p, key, maxPts: ROUND_PTS[game.round], falloffMm: FALLOFF_MM });
+   game.scores.push(r.pts);
+@@ -534,8 +538,10 @@ function label(text, [x, y]) {
+ 
+ function render() {
+   if (!game) return;
+-  ctx.setTransform(S * dpr, 0, 0, S * dpr, 0, 0);
+-  ctx.clearRect(0, 0, W, H);
++  ctx.setTransform(1, 0, 0, 1, 0, 0);
++  ctx.clearRect(0, 0, canvas.width, canvas.height);
++  const m = S * dpr * view.k;
++  ctx.setTransform(m, 0, 0, m, -view.x * m, -view.y * m);
+   const slice = shown();
+   const img = sliceImage(slice);
+   if (img) {
+@@ -588,6 +594,123 @@ function render() {
+   ctx.stroke();
+ }
+ 
++// ---------- zoom / pan (slice only) ----------
++const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
++let suppressClick = false; // set while a pan/pinch is in progress so lifting the finger/mouse is not taken as a guess
++
++function toSlice(clientX, clientY) {
++  const box = canvas.getBoundingClientRect();
++  return [view.x + (((clientX - box.left) / box.width) * W) / view.k, view.y + (((clientY - box.top) / box.height) * H) / view.k];
++}
++function clampView() {
++  view.x = clamp(view.x, 0, W - W / view.k);
++  view.y = clamp(view.y, 0, H - H / view.k);
++}
++function updateZoomUi() {
++  $('zLevel').textContent = `${+view.k.toFixed(1)}×`;
++  $('zOut').disabled = view.k <= 1;
++  $('zIn').disabled = view.k >= MAX_ZOOM;
++  $('zReset').hidden = view.k <= 1;
++  canvas.classList.toggle('zoomed', view.k > 1);
++}
++function zoomAt(factor, clientX, clientY) {
++  const box = canvas.getBoundingClientRect();
++  const fx = (clientX - box.left) / box.width;
++  const fy = (clientY - box.top) / box.height;
++  const sx = view.x + (fx * W) / view.k; // slice point under the cursor stays under it
++  const sy = view.y + (fy * H) / view.k;
++  view.k = clamp(view.k * factor, 1, MAX_ZOOM);
++  view.x = sx - (fx * W) / view.k;
++  view.y = sy - (fy * H) / view.k;
++  clampView();
++  updateZoomUi();
++  render();
++}
++function panBy(dxPx, dyPx) {
++  const box = canvas.getBoundingClientRect();
++  view.x -= (dxPx * W) / view.k / box.width;
++  view.y -= (dyPx * H) / view.k / box.height;
++  clampView();
++  render();
++}
++function resetZoom() {
++  view.k = 1;
++  view.x = 0;
++  view.y = 0;
++  updateZoomUi();
++}
++function zoomFromCentre(factor) {
++  const box = canvas.getBoundingClientRect();
++  zoomAt(factor, box.left + box.width / 2, box.top + box.height / 2);
++}
++
++const pointers = new Map(); // active pointers on the canvas: id -> { x, y, sx, sy, moved }
++let lastPinch = null;
++canvas.addEventListener('pointerdown', (e) => {
++  if (e.pointerType === 'mouse' && e.button !== 0) return;
++  if (!pointers.size) suppressClick = false;
++  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false });
++  try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported / already released */ }
++  if (pointers.size === 2) {
++    suppressClick = true;
++    const [a, b] = [...pointers.values()];
++    lastPinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
++  }
++});
++canvas.addEventListener('pointermove', (e) => {
++  const p = pointers.get(e.pointerId);
++  if (!p) return;
++  const dx = e.clientX - p.x;
++  const dy = e.clientY - p.y;
++  p.x = e.clientX;
++  p.y = e.clientY;
++  if (pointers.size === 2 && lastPinch) {
++    const [a, b] = [...pointers.values()];
++    const d = Math.hypot(a.x - b.x, a.y - b.y);
++    const mx = (a.x + b.x) / 2;
++    const my = (a.y + b.y) / 2;
++    if (lastPinch.d > 0 && d > 0) zoomAt(d / lastPinch.d, mx, my);
++    panBy(mx - lastPinch.mx, my - lastPinch.my);
++    lastPinch = { d, mx, my };
++  } else if (pointers.size === 1 && view.k > 1) {
++    if (!p.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 6) p.moved = true; // small wobble still counts as a tap
++    if (p.moved) {
++      suppressClick = true;
++      panBy(dx, dy);
++    }
++  }
++});
++const endPointer = (e) => {
++  pointers.delete(e.pointerId);
++  lastPinch = null;
++  for (const p of pointers.values()) p.moved = true; // after a pinch the remaining finger just pans
++};
++canvas.addEventListener('pointerup', endPointer);
++canvas.addEventListener('pointercancel', endPointer);
++
++// Mouse wheel and trackpad pinch (which browsers send as ctrl+wheel) zoom the slice instead of the whole page.
++canvas.addEventListener(
++  'wheel',
++  (e) => {
++    e.preventDefault();
++    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
++    zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
++  },
++  { passive: false },
++);
++// Safari desktop reports trackpad pinch as gesture events; touch pinches are handled by the pointer code above.
++let lastGesture = 1;
++canvas.addEventListener('gesturestart', (e) => { e.preventDefault(); lastGesture = 1; });
++canvas.addEventListener('gesturechange', (e) => {
++  e.preventDefault();
++  if (!pointers.size) zoomAt(e.scale / lastGesture, e.clientX, e.clientY);
++  lastGesture = e.scale;
++});
++
++$('zIn').addEventListener('click', () => zoomFromCentre(1.5));
++$('zOut').addEventListener('click', () => zoomFromCentre(1 / 1.5));
++$('zReset').addEventListener('click', () => { resetZoom(); render(); });
++
+ // ---------- wiring ----------
+ slider.addEventListener('input', onSlide);
+ $('apPrev').addEventListener('click', () => { slider.stepDown(); onSlide(); });
+diff --git a/app/src/style.css b/app/src/style.css
+index 6847efd..3f069a1 100644
+--- a/app/src/style.css
++++ b/app/src/style.css
+@@ -138,9 +138,23 @@ nav a[aria-current='page'] { background: var(--ink); color: var(--on-ink); }
+ .slide-label h2 { font-size: clamp(1.3rem, 5.4vw, 1.8rem); font-weight: 600; flex: 1 1 auto; }
+ .chips { display: flex; gap: 6px; }
+ .chip { padding: 2px 10px; border-radius: 999px; background: var(--chip); font-size: 0.82rem; font-weight: 600; }
+-.slide-glass { padding: 10px; background: var(--slide-glass); }
+-canvas { display: block; width: 100%; height: auto; background: var(--tissue); border-radius: 4px; cursor: crosshair; }
++.slide-glass { padding: 10px; background: var(--slide-glass); position: relative; }
++canvas { display: block; width: 100%; height: auto; background: var(--tissue); border-radius: 4px; cursor: crosshair; touch-action: pan-y; }
++canvas.zoomed { touch-action: none; } /* zoomed in: one finger pans the slice instead of scrolling the page */
+ canvas.locked { cursor: default; }
++.zoom-ctl {
++  position: absolute; top: 18px; right: 18px; display: flex; align-items: center; gap: 4px;
++  padding: 3px; border-radius: 999px; background: rgba(13, 11, 42, 0.72); color: #fff;
++}
++.zbtn {
++  min-width: 34px; height: 34px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: #fff;
++  font: 700 1.25rem/1 var(--display); cursor: pointer;
++}
++.zbtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
++.zbtn:disabled { opacity: 0.4; cursor: default; }
++.zreset { font-size: 0.8rem; }
++.zlevel { font: 600 0.8rem var(--display); font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: center; }
++.zoom-hint { margin-top: 6px; }
+ 
+ .ctl { margin-top: 16px; }
+ .ctl-top { display: flex; align-items: baseline; justify-content: space-between; }
+diff --git a/app/test/daily.test.js b/app/test/daily.test.js
+index b4677ac..264d11c 100644
+--- a/app/test/daily.test.js
++++ b/app/test/daily.test.js
+@@ -54,13 +54,24 @@ test('puzzleNumber and shareText', () => {
+   assert.equal(t, 'BrainTap #3 · 2026-10-21\n🧠 50/100\n🟩🟨🟥\n25/25 · 20/35 · 5/40');
+ });
+ 
+-test('daily round 1 is always CA1 when the atlas has it; practice and other rounds are unaffected', () => {
++test('default rules do not pin a region: daily round 1 can be any level 1-2 region, same as practice', () => {
++  assert.ok(ROUND_RULES.every((r) => !r.fixed));
+   const withCA1 = { ...structures, CA1: { level: 2 } };
+   const daily = buildPools(withCA1, ROUND_RULES);
++  assert.deepEqual([...daily[0]].sort(), ['A', 'B', 'C', 'CA1', 'D', 'E']);
++  assert.deepEqual(daily, buildPools(withCA1, ROUND_RULES, { daily: false }));
++  const firsts = new Set();
++  for (let d = 1; d <= 60; d++) firsts.add(pickRounds(withCA1, `s${d}`, daily)[0]);
++  assert.ok(firsts.size > 1);
++});
++
++test('a rule with `fixed` still pins that region in the daily game only (other rounds never draw it)', () => {
++  const withCA1 = { ...structures, CA1: { level: 2 } };
++  const rules = [{ levels: [1, 2], fixed: 'CA1' }, ...ROUND_RULES.slice(1)];
++  const daily = buildPools(withCA1, rules);
+   assert.deepEqual(daily[0], ['CA1']);
+   assert.ok(!daily[1].includes('CA1') && !daily[2].includes('CA1'));
+-  for (let d = 1; d <= 20; d++) assert.equal(pickRounds(withCA1, `s${d}`, daily)[0], 'CA1');
+-  const practice = buildPools(withCA1, ROUND_RULES, { daily: false });
++  const practice = buildPools(withCA1, rules, { daily: false });
+   assert.ok(practice[0].includes('CA1') && practice[0].length > 1);
+ });
+ 
